@@ -44,9 +44,18 @@ export async function renderQuiz(ctx, scopeId, goto) {
 
 export function resetQuiz() { session = null; }
 
+/** 제시 자료가 없는데 '자료 제시'라고 붙으면 헷갈린다. 실제 모양대로 이름 붙인다. */
+function tagOf(q) {
+  const hasStimulus = (q.stimulus ?? []).length > 0;
+  if (!hasStimulus && (q.format === 'source-pos' || q.format === 'source-neg')) {
+    return q.negative ? '옳지 않은 것' : '개념';
+  }
+  return TAG[q.format] ?? '문항';
+}
+
 function card(q, goto) {
   const box = h('section', { class: 'qcard' });
-  box.append(h('span', { class: 'qtag', text: TAG[q.format] ?? '문항' }));
+  box.append(h('span', { class: 'qtag', text: tagOf(q) }));
   for (const s of q.stimulus ?? []) box.append(stimulus(s));
   box.append(h('p', { class: 'qstem', html: renderStem(q.stem, q.negative) }));
 
