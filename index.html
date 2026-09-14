@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>한국사 시험대비</title>
+<meta name="theme-color" content="#8d4b37">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="한국사">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icon/icon-180.png">
+<link rel="icon" href="assets/icon/icon-180.png">
+<link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="scope-chip" id="scopeChip" type="button">
+    <span class="scope-chip__icon" aria-hidden="true">◈</span>
+    <span class="scope-chip__label" id="scopeLabel">범위를 고르는 중…</span>
+    <span class="scope-chip__caret" aria-hidden="true">▾</span>
+  </button>
+</header>
+
+<main id="view" class="view" tabindex="-1"></main>
+
+<nav class="tabbar" id="tabbar">
+  <a href="#/home"     data-tab="home"><span aria-hidden="true">⌂</span>홈</a>
+  <a href="#/study"    data-tab="study"><span aria-hidden="true">▤</span>학습</a>
+  <a href="#/quiz"     data-tab="quiz"><span aria-hidden="true">✎</span>문제</a>
+  <a href="#/coverage" data-tab="coverage"><span aria-hidden="true">▦</span>커버리지</a>
+  <a href="#/settings" data-tab="settings"><span aria-hidden="true">⚙</span>설정</a>
+</nav>
+
+<div class="sheet" id="scopeSheet" hidden>
+  <div class="sheet__backdrop" data-close></div>
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-label="범위 선택">
+    <div class="sheet__head">
+      <h2>범위 선택</h2>
+      <button class="iconbtn" type="button" data-close aria-label="닫기">✕</button>
+    </div>
+    <div class="axis-tabs" id="axisTabs"></div>
+    <div class="sheet__body" id="scopeBody"></div>
+    <div class="sheet__foot">
+      <p class="scope-summary" id="scopeSummary"></p>
+      <div class="sheet__actions">
+        <button class="btn btn--ghost" type="button" id="scopeStudy">이 범위 학습</button>
+        <button class="btn btn--primary" type="button" id="scopeQuiz">이 범위 문제풀기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" hidden>
+  <button class="lightbox__close" type="button" aria-label="닫기">✕</button>
+  <img id="lightboxImg" alt="">
+  <p class="lightbox__cap" id="lightboxCap"></p>
+</div>
+
+<script type="module" src="app/main.js"></script>
+</body>
+</html>

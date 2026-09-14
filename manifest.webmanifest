@@ -1,0 +1,24 @@
+{
+  "name": "한국사 시험대비",
+  "short_name": "한국사",
+  "description": "고등 한국사 2 · 교과서 8~85쪽 학습과 문제풀이",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./index.html#/home",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf8f5",
+  "theme_color": "#8d4b37",
+  "categories": ["education"],
+  "icons": [
+    { "src": "assets/icon/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icon/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "학습", "url": "./index.html#/study" },
+    { "name": "문제풀기", "url": "./index.html#/quiz" },
+    { "name": "커버리지", "url": "./index.html#/coverage" }
+  ]
+}
