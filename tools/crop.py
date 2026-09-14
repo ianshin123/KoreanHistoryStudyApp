@@ -12,6 +12,7 @@ PDF가 각 이미지의 배치 좌표를 그대로 들고 있어서, 고해상�
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 import pymupdf
@@ -121,7 +122,63 @@ def vector_boxes(page: pymupdf.Page, x_lo: float, x_hi: float) -> list[list[floa
             for o in merged
         )
     ]
+    outer = [b for b in outer if looks_like_chart(page, b)]
     return sorted(outer, key=lambda b: (round(b[1] / 20), b[0]))
+
+
+# 도표·지도와 사료 텍스트 상자는 둘 다 테두리 있는 네모다. 안에 그려진
+# 도형이 몇 개인지로 가른다 — 막대·선·범례가 있으면 도표, 테두리뿐이면 글상자다.
+CHART_MIN_SHAPES = 6
+
+
+def looks_like_chart(page: pymupdf.Page, box: list[float]) -> bool:
+    inner = 0
+    for g in page.get_drawings():
+        r = g["rect"]
+        if r.x0 < box[0] - 1 or r.y0 < box[1] - 1 or r.x1 > box[2] + 1 or r.y1 > box[3] + 1:
+            continue
+        # 상자 자신(과 그 테두리)은 세지 않는다.
+        if r.width > (box[2] - box[0]) * 0.94 and r.height > (box[3] - box[1]) * 0.94:
+            continue
+        if r.width < 1.5 and r.height < 1.5:
+            continue
+        inner += 1
+    return inner >= CHART_MIN_SHAPES
+
+
+def caption_for(page: pymupdf.Page, box: list[float]) -> str:
+    """그림 바로 아래에 붙은 캡션 줄을 찾아 온다.
+
+    이 교과서의 사진 설명은 그림 아래에 작은 고딕으로 달린다. 300장 가까운
+    그림에 일일이 설명을 적어 넣을 수는 없으므로, 위치로 자동 연결한다.
+    """
+    x0, _, x1, y1 = box
+    width = max(x1 - x0, 1.0)
+    lines: dict[int, list[tuple[float, str]]] = {}
+
+    for blk in page.get_text("dict")["blocks"]:
+        for line in blk.get("lines", []):
+            for s in line["spans"]:
+                text = s["text"].strip()
+                if not text or s["size"] > 5.6:
+                    continue
+                sx0, sy0, sx1, _ = s["bbox"]
+                # 그림 바로 아래 한두 줄만 본다. 넓게 잡으면 본문과 러닝 푸터가 끌려온다.
+                if not (y1 - 2 <= sy0 <= y1 + 16) or sy0 > 524:
+                    continue
+                overlap = min(x1, sx1) - max(x0, sx0)
+                if overlap < width * 0.3:
+                    continue
+                lines.setdefault(round(sy0 / 3), []).append((sx0, text))
+
+    if not lines:
+        return ""
+    first = lines[min(lines)]
+    joined = "".join(t for _, t in sorted(first))
+    # 캡션 앞에 붙는 장식 기호(◆ ▲ ↑ 등)는 글자가 아니라 그림이라 지운다.
+    caption = re.sub(r"^[^\w가-힣《〈(]+", "", joined).strip()
+    # 캡션은 짧은 한 줄이다. 길면 본문을 잘못 물어온 것이다.
+    return caption if 2 <= len(caption) <= 46 else ""
 
 
 def save_crop(page: pymupdf.Page, box: list[float], name: str) -> dict:
@@ -165,14 +222,16 @@ def crop_figures(doc, start: int, end: int, vectors: bool) -> list[dict]:
             x_lo, x_hi = (0, half) if side == "left" else (half, page.rect.width)
             for i, box in enumerate(figure_boxes(page, x_lo, x_hi), start=1):
                 rec = save_crop(page, box, f"p{number:03d}-f{i:02d}")
-                manifest.append({**rec, "page": number, "kind": "raster"})
+                manifest.append({**rec, "page": number, "kind": "raster",
+                                 "caption": caption_for(page, box)})
             if not vectors:
                 continue
             # 벡터 도표는 사료 텍스트 상자까지 함께 잡히므로 '후보'로만 낸다.
             # 무엇을 남길지는 펼침면을 보고 사람이 고른다.
             for i, box in enumerate(vector_boxes(page, x_lo, x_hi), start=1):
                 rec = save_crop(page, box, f"p{number:03d}-v{i:02d}")
-                manifest.append({**rec, "page": number, "kind": "vector?"})
+                manifest.append({**rec, "page": number, "kind": "vector?",
+                                 "caption": caption_for(page, box)})
     return manifest
 
 

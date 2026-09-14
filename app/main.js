@@ -1,69 +1,93 @@
-/** 앱 시작점과 라우터. */
+/** 라우터와 시작점. 화면은 목차 · 소단원 · 문제 · 연표 넷뿐이다. */
 
-import { loadToc, buildIndex } from './data.js';
-import { h, initLightbox } from './ui.js';
-import { initScope, currentScope, renderChip } from './scope.js';
-import { renderStudy, applyReadingPrefs } from './study.js';
-import { renderQuiz, clearSession } from './quiz.js';
-import { renderHome, renderCoverage, renderSettings } from './views.js';
+import { loadToc, loadFigures, findSection, scopeTitle } from './data.js';
+import { h, initLightbox, pageLabel } from './ui.js';
+import { renderHome } from './home.js';
+import { renderSection } from './section.js';
+import { renderQuiz, resetQuiz } from './quiz.js';
+import { renderTimeline } from './timeline.js';
 
-const ROUTES = {
-  '#/home': renderHome,
-  '#/study': renderStudy,
-  '#/quiz': renderQuiz,
-  '#/coverage': renderCoverage,
-  '#/settings': renderSettings,
-};
-
-let ctx;
 const view = document.getElementById('view');
+const topbar = document.getElementById('topbar');
+let ctx;
 
 function goto(hash) {
+  // 같은 주소면 hashchange가 안 오므로 직접 다시 그린다(문제 다음 장 넘기기 등).
   if (location.hash === hash) render();
   else location.hash = hash;
 }
 
-function render() {
-  const route = ROUTES[location.hash] ? location.hash : '#/home';
-  // 문제 화면을 벗어나면 풀던 세션을 버린다. 돌아왔을 때 중간부터 시작하면 헷갈린다.
-  if (route !== '#/quiz' && lastRoute === '#/quiz') clearSession();
-  lastRoute = route;
+/** `#/s/1-01-2/data` 같은 주소를 조각으로 나눈다. */
+function parse() {
+  const parts = (location.hash || '#/home').replace(/^#\/?/, '').split('/').filter(Boolean);
+  return { name: parts[0] || 'home', a: parts[1], b: parts[2] };
+}
 
-  for (const a of document.querySelectorAll('.tabbar a')) {
-    a.toggleAttribute('aria-current', a.getAttribute('href') === route);
-    if (a.getAttribute('href') === route) a.setAttribute('aria-current', 'page');
+function setTop({ title, sub, back } = {}) {
+  // replaceChildren는 undefined를 "undefined" 글자로 넣어 버리므로 미리 걸러낸다.
+  const parts = [
+    back && h('button', { class: 'topbar__back', type: 'button',
+      'aria-label': '뒤로', onclick: () => goto(back) }, '‹'),
+    title && h('span', { class: 'topbar__title', text: title }),
+    sub && h('span', { class: 'topbar__sub', text: sub }),
+  ].filter(Boolean);
+  topbar.replaceChildren(...parts);
+}
+
+async function render() {
+  const { name, a, b } = parse();
+  for (const el of document.querySelectorAll('.tabbar a')) {
+    const tab = el.dataset.tab;
+    const on = (tab === 'timeline' && name === 'timeline') || (tab === 'home' && name !== 'timeline');
+    if (on) el.setAttribute('aria-current', 'page');
+    else el.removeAttribute('aria-current');
   }
 
   try {
-    view.replaceChildren(ROUTES[route](ctx, currentScope(), goto));
+    if (name === 'timeline') {
+      setTop({ title: '연표', sub: '전범위' });
+      view.replaceChildren(await renderTimeline(ctx, goto));
+    } else if (name === 's' && a) {
+      const meta = findSection(ctx.toc, a);
+      if (!meta) throw new Error('없는 소단원입니다.');
+      setTop({ title: meta.title, sub: pageLabel(meta.pages), back: '#/home' });
+      view.replaceChildren(await renderSection(ctx, a, b ?? 'note', goto));
+    } else if (name === 'quiz' && a) {
+      setTop({ title: scopeTitle(ctx.toc, a), sub: '문제', back: backFromQuiz(a) });
+      view.replaceChildren(await renderQuiz(ctx, a, goto));
+    } else {
+      resetQuiz();
+      setTop();   // 목차 화면은 자체 제목이 있어 상단 바를 비운다
+
+      view.replaceChildren(await renderHome(ctx, goto));
+    }
   } catch (err) {
     console.error(err);
     view.replaceChildren(h('div', { class: 'empty' },
       h('h3', { text: '화면을 그리지 못했습니다' }),
       h('p', { class: 'tiny muted', text: err.message })));
   }
-  applyReadingPrefs();
   window.scrollTo({ top: 0 });
 }
 
-let lastRoute = null;
+function backFromQuiz(scopeId) {
+  // 소단원 문제였다면 그 소단원으로, 중단원·전범위였다면 목차로 돌아간다.
+  return findSection(ctx.toc, scopeId) ? `#/s/${scopeId}/quiz` : '#/home';
+}
 
 async function boot() {
   view.replaceChildren(h('div', { class: 'empty' }, h('p', { text: '불러오는 중…' })));
   try {
     const toc = await loadToc();
-    const index = await buildIndex(toc);
-    ctx = { toc, index };
+    await loadFigures();
+    ctx = { toc };
   } catch (err) {
     view.replaceChildren(h('div', { class: 'empty' },
       h('h3', { text: '콘텐츠를 불러오지 못했습니다' }),
       h('p', { class: 'tiny muted', text: err.message })));
     return;
   }
-
   initLightbox();
-  initScope(ctx, goto);
-  renderChip();
   window.addEventListener('hashchange', render);
   if (!location.hash) location.hash = '#/home';
   render();
@@ -73,8 +97,6 @@ boot();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {
-      // 오프라인 기능만 빠질 뿐, 앱 자체는 그대로 쓸 수 있다.
-    });
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
